@@ -2,6 +2,7 @@ library(stars)
 library(tidyverse)
 library(rgee)
 library(sf)
+library(innovar)
 
 ee_Initialize()
 data("Peru")
@@ -32,35 +33,46 @@ start_temp_march <-
   ee$Image() %>%
   ee_as_stars(
     region = region,
-    region = 1000
+    scale = 1000
   )
 
 gpkg_original <- st_read("sources/IE_P.gpkg")
+
+names(gpkg_original) <- names(gpkg_original) %>% 
+  str_to_lower()
+
 gpkg_code <- gpkg_original %>%
-  select(CODLOCAL)
+  select(codlocal)
 
 temp_year <- st_extract(
   start_temp_year,gpkg_code) %>%
   st_as_sf() %>%
   st_join(gpkg_code) %>%
-  mutate(tmean = (tmmn + tmmx)/2) %>%
+  mutate(
+    tmmn = round(tmmn,4),
+    tmmx = round(tmmx,4),
+    tmean = (tmmn + tmmx)/2 %>% round(.,4)) %>%
   st_set_geometry(NULL)
 
 temp_march <- st_extract(
   start_temp_march,gpkg_code) %>%
   st_as_sf() %>%
   st_join(gpkg_code) %>%
-  mutate(tmean_march = (tmmn + tmmx)/2) %>%
+  mutate(
+    tmmn = round(tmmn,4),
+    tmmx = round(tmmx,4),
+    tmean_march = (tmmn + tmmx)/2 %>% round(.,4)) %>%
   rename(
     tmmn_march = tmmn,
     tmmx_march = tmmx
     ) %>%
   st_set_geometry(NULL)
 
-
 db_temp <- temp_year %>%
-  inner_join(y = temp_march,by = "CODLOCAL") %>%
-  inner_join(x = ., y = gpkg, by = "CODLOCAL") %>%
-  select(3,8:16,1:2,4,5:7)
+  inner_join(y = temp_march,by = "codlocal") %>%
+  inner_join(x = gpkg_original, by = "codlocal") %>%
+  st_join(Peru) %>%
+  select(17:24,1:16,geom)
+
 dir.create("ouput")
 write_sf(db_temp,"ouput/db_temp_2021.gpkg")
